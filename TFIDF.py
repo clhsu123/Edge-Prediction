@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
 import math
+from sklearn import ensemble, preprocessing, metrics
 
+Topk = 500
 def computeIDF(documents):
     N = len(documents)
     idfDict = {}
@@ -45,6 +47,7 @@ def readFile():
 	return pairsList, yList, motifList
 
 pairsList, yList, motifList = readFile()
+
 idfDict = computeIDF(motifList)
 
 TFIDF_arr = np.zeros((len(yList), len(idfDict)))
@@ -54,5 +57,21 @@ uniMotifIdx = dict(zip(uniMotifList, range(0, len(uniMotifList))))
 TFIDF_arr = computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList)
 TFIDF_arr = norml2(TFIDF_arr)
 
+#train
+print("Start Train")
+forest = ensemble.RandomForestClassifier(n_estimators = 100)
+forest_fit = forest.fit(TFIDF_arr, yList)
 
+#evaluate
+print("Start Evaluate")
+testIdx = [i for i, x in enumerate(yList) if x == "0"]
+testArr = np.take(TFIDF_arr, testIdx, axis = 0)
+testPairs = [pairsList[i] for i in testIdx]
 
+test_y_predicted = forest.predict_proba(testArr)
+ind = np.argpartition(test_y_predicted[:,1], -Topk)[-Topk:]
+output = [pairsList[i] for i in ind]
+# match
+testData = pd.read_table("./HI-union-test0.el", sep = ' ', header = None)
+ans = list(testData[0].apply(lambda x: x.split('\t')[1] + ':'+ x.split('\t')[0]))
+print(list(set(ans) & set(pairsList)))

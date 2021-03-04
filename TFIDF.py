@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import math
+from operator import itemgetter
 from sklearn.linear_model import LogisticRegression
 from collections import defaultdict
 from sklearn import preprocessing
@@ -27,7 +28,6 @@ def computeIDF(documents):
             key = motif.split()[0]
             idfDict.setdefault(key, 0)
             idfDict[key] +=1
-
     for word, val in idfDict.items():
         idfDict[word] = math.log(N / float(val))
     return idfDict
@@ -36,8 +36,9 @@ def computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList):
 	for idx, motifs in enumerate(motifList):
 		for data in motifs:
 			m = data.split()[0]
+			if m not in uniMotifIdx.keys(): continue; 
 			count = data.split()[1]
-			TFIDF_arr[idx][uniMotifIdx[m]] = int(count)
+			TFIDF_arr[idx][uniMotifIdx[m]] = (idfDict[m]) * int(count)
 	return TFIDF_arr
 
 def norml2(X):
@@ -50,7 +51,7 @@ def readFile():
 	Lines = file1.readlines()
 	pairsList = []
 	yList = []
-	motifList = []
+	motifList =[]
 	for l in Lines:
 		data = l.rstrip().split('\t')
 		pairs = data[0].split(' ')[0]
@@ -62,7 +63,12 @@ def readFile():
 	return pairsList, yList, motifList
 
 pairsList, yList, motifList = readFile()
+oneIdx = [i for i, x in enumerate(yList) if x == '1']
+oneList = [motifList[i] for i in oneIdx]
 idfDict = computeIDF(motifList)
+num  = int(len(idfDict)/2)
+idfDict = dict(sorted(idfDict.items(), reverse = True, key = itemgetter(1))[:num])
+
 TFIDF_arr = np.zeros((len(yList), len(idfDict)))
 uniMotifList = list(idfDict.keys())
 uniMotifIdx = dict(zip(uniMotifList, range(0, len(uniMotifList))))

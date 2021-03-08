@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 import math
 from operator import itemgetter
-from sklearn.linear_model import LogisticRegression
 from collections import defaultdict
 from sklearn import preprocessing
 import sys
+from xgboost import XGBClassifier
+import time
 
-Topk = 500
 if not len(sys.argv) == 3:
 	print("Wrong number of argument passed to commend line, please follow the format:")
 	print("python TFIDF.py folder_number file_number")
@@ -18,12 +18,15 @@ N = int(sys.argv[2])
 
 orbitMap = []
 for i in range(4, N+1):
-    file_name = "./orbit_map"+str(i)+".txt"
+    file_name = "./orbitmap/orbit_map"+str(i)+".txt"
     orbitMap.append(np.loadtxt(file_name, skiprows = 1, dtype = int))
 file_number = ""
 for i in range(4, N+1):
 	file_number+=str(i)
-test_filename = "./HI-union-test"+folder+".el"
+
+test_filename = "./F"+folder+"/HI-union-test"+folder+".el"
+train_filename = "./F"+folder+"/HI-union-train"+folder+".k"+file_number+".tsv"
+Topk = 500
 
 def convertMotif(motifList):
 	k_to_cnt = {}
@@ -58,15 +61,9 @@ def computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList):
 			TFIDF_arr[idx][uniMotifIdx[m]] = (idfDict[m]) * int(count)
 	return TFIDF_arr
 
-def norml2(X):
-	l2norm = np.sqrt((X * X).sum(axis=1))
-	X /= l2norm.reshape(len(X),1)
-	return X
-
 def readFile():
-	file_name = "HI-union-train"+folder+".k"+file_number+".tsv" 
-	file1 = open(file_name, 'r')
-	Lines = file1.readlines()
+	trainfile = open(train_filename, 'r')
+	Lines = trainfile.readlines()
 	pairsList = []
 	yList = []
 	motifList =[]
@@ -82,8 +79,7 @@ def readFile():
 
 
 pairsList, yList, motifList = readFile()
-oneIdx = [i for i, x in enumerate(yList) if x == '1']
-oneList = [motifList[i] for i in oneIdx]
+start_time = time.time()
 idfDict = computeIDF(motifList)
 num  = int(len(idfDict)/2)
 idfDict = dict(sorted(idfDict.items(), reverse = True, key = itemgetter(1))[:num])
@@ -97,7 +93,7 @@ TFIDF_arr = preprocessing.normalize(TFIDF_arr, norm="l1")
 yList = list(map(int, yList)) 
 #train
 print("Start Train")
-model = LogisticRegression(max_iter=1000)
+model = XGBClassifier(eta = 0.1, verbosity = 0, use_label_encoder =False)
 model.fit(TFIDF_arr, yList)
 
 #evaluate
@@ -112,6 +108,6 @@ output = [testPairs[i] for i in ind]
 # match
 testData = pd.read_table(test_filename, sep = ' ', header = None)
 ans = list(testData[0].apply(lambda x: x.split('\t')[1] + ':'+ x.split('\t')[0]))
-
 print("Folder = "+folder+", k = "+file_number+":")
-print(list(set(ans) & set(output)))
+print(len(list(set(ans) & set(output))))
+print("--- %s seconds ---" % (time.time() - start_time))

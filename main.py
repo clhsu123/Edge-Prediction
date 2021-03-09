@@ -7,6 +7,10 @@ from sklearn import preprocessing
 import sys
 from xgboost import XGBClassifier
 import time
+from multiprocessing import Pool, Manager
+from functools import partial
+Topk = 500
+num_pool = 20
 
 if not len(sys.argv) == 3:
 	print("Wrong number of argument passed to commend line, please follow the format:")
@@ -26,7 +30,6 @@ for i in range(4, N+1):
 
 test_filename = "./F"+folder+"/HI-union-test"+folder+".el"
 train_filename = "./F"+folder+"/HI-union-train"+folder+".k"+file_number+".tsv"
-Topk = 500
 
 def convertMotif(motifList):
 	k_to_cnt = {}
@@ -52,7 +55,8 @@ def computeIDF(documents):
         idfDict[word] = math.log(N / float(val))
     return idfDict
 
-def computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList):
+def computeTFIDF(motifList, uniMotifList, uniMotifIdx, idfDict):
+	TFIDF_arr = np.zeros((len(motifList), len(idfDict)))
 	for idx, motifs in enumerate(motifList):
 		for data in motifs:
 			m = data.split()[0]
@@ -88,7 +92,13 @@ TFIDF_arr = np.zeros((len(yList), len(idfDict)))
 uniMotifList = list(idfDict.keys())
 uniMotifIdx = dict(zip(uniMotifList, range(0, len(uniMotifList))))
 
-TFIDF_arr = computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList)
+mp = Pool(num_pool)
+split_datas = np.array_split(motifList, num_pool)
+
+partial_work = partial(computeTFIDF, uniMotifList = uniMotifList, uniMotifIdx = uniMotifIdx, idfDict = idfDict)
+TFIDF_arr = mp.map(partial_work, split_datas)
+mp.close()
+TFIDF_arr = np.vstack(TFIDF_arr)
 TFIDF_arr = preprocessing.normalize(TFIDF_arr, norm="l1")
 yList = list(map(int, yList)) 
 #train

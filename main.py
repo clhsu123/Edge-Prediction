@@ -4,21 +4,26 @@ import math
 from operator import itemgetter
 from collections import defaultdict
 from sklearn import preprocessing
-import sys
 from xgboost import XGBClassifier
 import time
-from multiprocessing import Pool, Manager
-from functools import partial
-Topk = 500
-num_pool = 20
+import argparse
+import os
+import sys
 
-if not len(sys.argv) == 3:
-	print("Wrong number of argument passed to commend line, please follow the format:")
-	print("python TFIDF.py folder_number file_number")
-	sys.exit()
+#Create the parser
+my_parser = argparse.ArgumentParser(description = 'Input the folder number and k')
+#Add the arguments
+my_parser.add_argument('-folder', '--folder', metavar = '{folder}', required = True,  type = str, help = 'The folder number')
+my_parser.add_argument('-k','--k', metavar = '{k}', required = True, type = int, help = 'The number of k')
+#Execute the parse_arge() method
+args = my_parser.parse_args()
 
-folder = str(sys.argv[1])
-N = int(sys.argv[2])
+folder = args.folder
+N = args.k
+
+if not(folder>='0' and folder<='9' and N>=4 and N<=8):
+    print('folder number should be between 0 and 9, N should be between 4 and 8 inclusively. Exit.')
+    exit(0)
 
 orbitMap = []
 for i in range(4, N+1):
@@ -30,6 +35,7 @@ for i in range(4, N+1):
 
 test_filename = "./F"+folder+"/HI-union-test"+folder+".el"
 train_filename = "./F"+folder+"/HI-union-train"+folder+".k"+file_number+".tsv"
+Topk = 500
 
 def convertMotif(motifList):
 	k_to_cnt = {}
@@ -41,7 +47,6 @@ def convertMotif(motifList):
 		k_to_cnt[k1] += count
 		k_to_cnt[k2] += count
 	return [ k+" "+str(v) for k, v in k_to_cnt.items()]
-
 
 def computeIDF(documents):
     N = len(documents)
@@ -55,8 +60,7 @@ def computeIDF(documents):
         idfDict[word] = math.log(N / float(val))
     return idfDict
 
-def computeTFIDF(motifList, uniMotifList, uniMotifIdx, idfDict):
-	TFIDF_arr = np.zeros((len(motifList), len(idfDict)))
+def computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList):
 	for idx, motifs in enumerate(motifList):
 		for data in motifs:
 			m = data.split()[0]
@@ -81,24 +85,22 @@ def readFile():
 		motifList.append(motifs)
 	return pairsList, yList, motifList
 
-
+print("READ FILE")
 pairsList, yList, motifList = readFile()
 start_time = time.time()
-idfDict = computeIDF(motifList)
-num  = int(len(idfDict)/2)
-idfDict = dict(sorted(idfDict.items(), reverse = True, key = itemgetter(1))[:num])
+
+print("COMPUTE IDF")
+FullDict = computeIDF(motifList)
+numdict = {4:3, 5:5, 6:7, 7:40, 8:600}
+num  = numdict[N]
+idfDict = dict(sorted(FullDict.items(), reverse = True, key = itemgetter(1))[:num])
 
 TFIDF_arr = np.zeros((len(yList), len(idfDict)))
 uniMotifList = list(idfDict.keys())
 uniMotifIdx = dict(zip(uniMotifList, range(0, len(uniMotifList))))
 
-mp = Pool(num_pool)
-split_datas = np.array_split(motifList, num_pool)
-
-partial_work = partial(computeTFIDF, uniMotifList = uniMotifList, uniMotifIdx = uniMotifIdx, idfDict = idfDict)
-TFIDF_arr = mp.map(partial_work, split_datas)
-mp.close()
-TFIDF_arr = np.vstack(TFIDF_arr)
+print("COMPUTE TFIDF")
+TFIDF_arr = computeTFIDF(TFIDF_arr, uniMotifList, uniMotifIdx, idfDict, motifList)
 TFIDF_arr = preprocessing.normalize(TFIDF_arr, norm="l1")
 yList = list(map(int, yList)) 
 #train

@@ -52,7 +52,7 @@ def convertMotif(motifList):
 		k, row, col1, col2 = map(int, m.split(" ")[0].split(":"))
 		count = int (m.split(" ")[1])
 		#Map the row and col to orbit IDs in orbit map
-		k1, k2 = "k4_"+ str(orbitMap[k-4][row][col1]), "k4_"+str(orbitMap[k-4][row][col2])
+		k1, k2 = "k"+str(k)+"_"+ str(orbitMap[k-4][row][col1]), "k"+str(k)+"_"+str(orbitMap[k-4][row][col2])
 		#Count the frequency of each orbit ID using hash table
 		k_to_cnt[k1] += count
 		k_to_cnt[k2] += count
